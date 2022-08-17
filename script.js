@@ -19,11 +19,11 @@ const login = () => {
 
 
   fetch('/wp-admin/admin-ajax.php?action=login&email=' + email.value + '&password=' + password.value, {method: 'GET'})
-      .then(async (resposnse) => {
-        if(resposnse.status !== 200) {
-          // console.log(await resposnse.text())
+      .then(async (response) => {
+        if(response.status !== 200) {
+          // console.log(await response.text())
           error_wrapper.classList.remove('d-none')
-          error_wrapper.innerHTML = await resposnse.text()
+          error_wrapper.innerHTML = await response.text()
           return;
         }
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * Scope of the application:
  * 1. Allow guests to login to their wordpress account.
@@ -12,109 +14,117 @@
  * 2. Code style.
  * 3. Potential performance issues.
  */
+\add_filter('show_admin_bar', '__return_false');
 
-add_filter( 'show_admin_bar', '__return_false' );
+\add_action('wp_ajax_nopriv_load_view', 'loadView');
+\add_action('wp_ajax_load_view', 'loadView');
 
-add_action('wp_ajax_nopriv_load_view', 'load_view');
-add_action('wp_ajax_load_view', 'load_view');
-
-function load_view(): void
+function loadView(): void
 {
-    require 'partials/' . $_GET['view'] . '.php';
-    die;
+    $viewName = \filter_input(\INPUT_GET, 'view', \FILTER_SANITIZE_STRING);
+    $publicViews = ['login'];
+    $restrictedViews = ['add', 'dashboard', 'edit'];
+    $viewPath = 'partials/' . $viewName . '.php';
+
+    if (\in_array($viewName, $publicViews, true)) {
+        require $viewPath;
+        exit;
+    }
+
+    if (\in_array($viewName, $restrictedViews, true) && \is_user_logged_in()) {
+        require $viewPath;
+        exit;
+    }
 }
 
-add_action('wp_ajax_nopriv_login', 'login');
-add_action('wp_ajax_login', 'login');
+\add_action('wp_ajax_nopriv_login', 'login');
+\add_action('wp_ajax_login', 'login');
 
 function login(): void
 {
-    $email = $_GET['email'];
-    $password = $_GET['password'];
+    $password = \filter_input(\INPUT_GET, 'password', \FILTER_SANITIZE_STRING);
+    $email = \filter_input(\INPUT_GET, 'email', \FILTER_SANITIZE_EMAIL);
 
-    if ($email) {
-        if ($password) {
-            $user = wp_signon(['user_login' => $email, 'user_password' => $password]);
-            if (is_wp_error($user)) {
-                echo $user->get_error_message();
-                http_response_code(400);
-                die;
-            }
-        }else {
-            echo 'Missing password!';
-            http_response_code(400);
-            die;
-        }
-    } else {
+    if (empty($email)) {
+        \http_response_code(400);
         echo 'Missing email!';
-        http_response_code(400);
-        die;
+        exit;
     }
 
-    http_response_code(200);
-    die;
+    if (empty($password)) {
+        \http_response_code(400);
+        echo 'Missing password!';
+        exit;
+    }
+
+    $user = \wp_signon(['user_login' => $email, 'user_password' => $password]);
+
+    if (\is_wp_error($user)) {
+        \http_response_code(400);
+        echo $user->get_error_message();
+        exit;
+    }
+
+    \http_response_code(200);
+    exit;
 }
 
-add_action('wp_ajax_nopriv_post_delete', 'post_delete');
-add_action('wp_ajax_post_delete', 'post_delete');
+\add_action('wp_ajax_post_delete', 'deletePost');
 
-function post_delete(): void
+function deletePost(): void
 {
-    $post_id = $_GET['post'];
+    $postID = \filter_input(\INPUT_GET, 'post', \FILTER_SANITIZE_NUMBER_INT);
 
-    if ($post_id) {
-        $delete = wp_delete_post($post_id);
-
-            if (!$delete) {
-                echo 'Post cannot be delted';
-                http_response_code(400);
-                die;
-            }
-
-    } else {
+    if (!$postID) {
+        \http_response_code(400);
         echo 'Invalid post id!';
-        http_response_code(400);
-        die;
+        exit;
     }
 
-    http_response_code(200);
-    die;
+    $delete = \wp_delete_post($postID);
+
+    if (!$delete) {
+        \http_response_code(400);
+        echo 'Post cannot be delted';
+        exit;
+    }
+
+    \http_response_code(200);
+    exit;
 }
 
-add_action('wp_ajax_nopriv_post_insert', 'post_insert');
-add_action('wp_ajax_post_insert', 'post_insert');
+\add_action('wp_ajax_post_insert', 'insertPost');
 
-function post_insert(): void
+function insertPost(): void
 {
-    $post = json_decode(stripslashes($_GET['post']), true);
-    $post = filter_var_array($post);
+    $postData = \filter_input(\INPUT_GET, 'post', \FILTER_SANITIZE_STRING);
+    $postData = \json_decode(\htmlspecialchars_decode(\stripslashes($postData)), true);
 
-    if ($post) {
-        $post = wp_insert_post($post);
-
-        if (is_wp_error($post)) {
-            echo $post->get_error_message();
-            http_response_code(400);
-            die;
-        }
-
-    } else {
-        echo 'Invalid post!';
-        http_response_code(400);
-        die;
+    if (!$postData) {
+        \http_response_code(400);
+        echo 'Invalid post data!';
+        exit;
     }
 
-    http_response_code(200);
-    die;
+    $post = \wp_insert_post($postData);
+
+    if (\is_wp_error($post)) {
+        \http_response_code(400);
+        echo $post->get_error_message();
+        exit;
+    }
+
+    \http_response_code(200);
+    exit;
 }
 
-add_action('wp_ajax_nopriv_logout', 'logout');
-add_action('wp_ajax_logout', 'logout');
+\add_action('wp_ajax_nopriv_logout', 'logout');
+\add_action('wp_ajax_logout', 'logout');
 
 function logout(): void
 {
-    wp_logout();
+    \wp_logout();
 
-    http_response_code(200);
-    die;
+    \http_response_code(200);
+    exit;
 }
